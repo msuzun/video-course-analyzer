@@ -6,6 +6,7 @@ from typing import Any
 
 from celery import Celery
 
+from steps.asr_whisper import run_asr_whisper
 from steps.ingest import run_ingest
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
@@ -112,9 +113,38 @@ def pipeline_run(job_id: str) -> dict[str, Any]:
         ingest_result = run_ingest(job_id, DATA_ROOT)
         append_live_log(job_id, "ingest step completed")
 
+        update_step_state(
+            job_id,
+            status="ASR_RUNNING",
+            current_step="asr",
+            step_name="ingest",
+            step_state="COMPLETED",
+            progress=50.0,
+        )
+        update_step_state(
+            job_id,
+            status="ASR_RUNNING",
+            current_step="asr",
+            step_name="asr",
+            step_state="RUNNING",
+            progress=55.0,
+        )
+
+        append_live_log(job_id, "asr step started")
+        asr_result = run_asr_whisper(job_id, DATA_ROOT)
+        append_live_log(job_id, "asr step completed")
+
         state = update_step_state(
             job_id,
-            status="INGEST_COMPLETED",
+            status="COMPLETED",
+            current_step=None,
+            step_name="asr",
+            step_state="COMPLETED",
+            progress=100.0,
+        )
+        update_step_state(
+            job_id,
+            status="COMPLETED",
             current_step=None,
             step_name="ingest",
             step_state="COMPLETED",
@@ -125,15 +155,16 @@ def pipeline_run(job_id: str) -> dict[str, Any]:
             "status": state["status"],
             "progress": state["progress"],
             "ingest": ingest_result,
+            "asr": asr_result,
         }
     except Exception as exc:
-        append_live_log(job_id, f"ingest step failed: {exc}")
+        append_live_log(job_id, f"pipeline step failed: {exc}")
         update_step_state(
             job_id,
             status="FAILED",
-            current_step="ingest",
-            step_name="ingest",
+            current_step="pipeline",
+            step_name="pipeline",
             step_state="FAILED",
-            progress=5.0,
+            progress=10.0,
         )
         raise RuntimeError(f"pipeline_run_failed: {exc}") from exc
