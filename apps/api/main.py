@@ -121,7 +121,42 @@ def _save_chat_session(job_id: str, session_id: str, data: dict[str, Any]) -> No
     session_file.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+RAG_SYSTEM_PROMPT = (
+    "You are a video learning assistant.\n"
+    "Answer ONLY using the provided context.\n"
+    "If the answer does not exist in the context say:\n"
+    "'This topic is not covered in the video.'"
+)
+
+
+def _seconds_to_mmss(seconds: float | int | None) -> str:
+    """Format seconds as MM:SS for context headers."""
+    if seconds is None:
+        return "0:00"
+    try:
+        s = float(seconds)
+    except (TypeError, ValueError):
+        return "0:00"
+    s = max(0, s)
+    m = int(s) // 60
+    sec = int(s) % 60
+    return f"{m:02d}:{sec:02d}"
+
+
+def _build_rag_context(sources: list[dict[str, Any]]) -> str:
+    """Build context string in format: [Chunk N | MM:SS - MM:SS]\\ntext"""
+    blocks: list[str] = []
+    for idx, s in enumerate(sources, start=1):
+        t0 = s.get("t0")
+        t1 = s.get("t1")
+        header = f"[Chunk {idx} | {_seconds_to_mmss(t0)} - {_seconds_to_mmss(t1)}]"
+        text = str(s.get("snippet") or "").strip()
+        blocks.append(f"{header}\n{text}")
+    return "\n\n".join(blocks)
+
+
 def _retrieve_sources(job_id: str, query: str, top_k: int) -> list[dict[str, Any]]:
+    """Embed query with same model as indexer, search Qdrant video_<job_id>, return top_k chunks."""
     collection_name = f"video_{job_id}"
     encoder = _get_encoder()
     query_vector = encoder.encode([query], normalize_embeddings=True, show_progress_bar=False)[0]
@@ -129,7 +164,7 @@ def _retrieve_sources(job_id: str, query: str, top_k: int) -> list[dict[str, Any
     hits = _get_qdrant_client().search(
         collection_name=collection_name,
         query_vector=query_vector.tolist(),
-        limit=max(top_k, 2),
+        limit=max(top_k, 1),
         with_payload=True,
         with_vectors=False,
     )
@@ -140,10 +175,19 @@ def _retrieve_sources(job_id: str, query: str, top_k: int) -> list[dict[str, Any
         snippet = str(payload.get("text") or "").strip()
         if len(snippet) > 500:
             snippet = snippet[:497] + "..."
+        t0 = payload.get("t0")
+        t1 = payload.get("t1")
+        try:
+            if t0 is not None:
+                t0 = float(t0)
+            if t1 is not None:
+                t1 = float(t1)
+        except (TypeError, ValueError):
+            pass
         sources.append(
             {
-                "t0": payload.get("t0"),
-                "t1": payload.get("t1"),
+                "t0": t0,
+                "t1": t1,
                 "snippet": snippet,
                 "chunk_id": payload.get("chunk_id"),
                 "score": float(hit.score),
@@ -152,36 +196,37 @@ def _retrieve_sources(job_id: str, query: str, top_k: int) -> list[dict[str, Any
     return sources
 
 
-def _generate_chat_answer(message: str, sources: list[dict[str, Any]], history: list[dict[str, Any]]) -> str:
+def _generate_chat_answer(message: str, sources: list[dict[str, Any]]) -> str:
+    """Generate RAG answer from retrieved chunks using fixed video-learning prompt."""
     if not sources:
-        return "Bu bilgi videoda yok."
+        return "This topic is not covered in the video."
 
-    prompt_template = _get_chat_prompt_template()
-    history_tail = history[-6:]
-    history_text = "\n".join([f"{m.get('role','user')}: {m.get('content','')}" for m in history_tail])
-    context_text = "\n".join(
-        [f"[{s.get('t0')} - {s.get('t1')}] ({s.get('chunk_id')}): {s.get('snippet')}" for s in sources]
-    )
+    context_text = _build_rag_context(sources)
     prompt = (
-        f"{prompt_template}\n\n"
-        f"SOHBET_GECMISI:\n{history_text}\n\n"
-        f"VIDEO_BAGLAM:\n{context_text}\n\n"
-        f"KULLANICI_SORUSU:\n{message}\n\n"
-        "YANIT:"
+        f"{RAG_SYSTEM_PROMPT}\n\n"
+        f"CONTEXT:\n{context_text}\n\n"
+        f"QUESTION: {message}\n\n"
+        "ANSWER:"
     )
 
     try:
         generator = _get_chat_generator()
-        output = generator(prompt, max_new_tokens=220, do_sample=False, temperature=0.1)
+        output = generator(prompt, max_new_tokens=256, do_sample=False, temperature=0.1)
         generated = str(output[0].get("generated_text", "")).strip()
         answer = generated[len(prompt) :].strip() if generated.startswith(prompt) else generated
+        # Truncate at first newline for single-paragraph answer when model adds extra text
+        if "\n" in answer:
+            answer = answer.split("\n")[0].strip()
         if not answer:
-            return "Bu bilgi videoda yok."
+            return "This topic is not covered in the video."
         return answer
     except Exception:
         if sources:
-            return f"Videoya göre: {sources[0].get('snippet') or 'Bu bilgi videoda yok.'}"
-        return "Bu bilgi videoda yok."
+            return (
+                str(sources[0].get("snippet") or "This topic is not covered in the video.").strip()
+                or "This topic is not covered in the video."
+            )
+        return "This topic is not covered in the video."
 
 
 @app.get("/health")
@@ -397,14 +442,22 @@ def chat_with_job(job_id: str, payload: ChatRequest) -> dict[str, Any]:
     except Exception as exc:
         raise HTTPException(status_code=404, detail=f"chat_retrieve_failed: {exc}") from exc
 
-    answer = _generate_chat_answer(payload.message, sources, session.get("messages", []))
+    answer = _generate_chat_answer(payload.message, sources)
 
     session["messages"].append({"role": "user", "content": payload.message, "ts": _utc_now_iso()})
     session["messages"].append({"role": "assistant", "content": answer, "ts": _utc_now_iso(), "sources": sources})
     session["updated_at"] = _utc_now_iso()
     _save_chat_session(job_id, payload.session_id, session)
 
-    response_sources = [{"t0": s["t0"], "t1": s["t1"], "snippet": s["snippet"], "chunk_id": s["chunk_id"]} for s in sources]
+    response_sources = [
+        {
+            "chunk_id": s.get("chunk_id"),
+            "t0": s.get("t0"),
+            "t1": s.get("t1"),
+            "snippet": s.get("snippet", ""),
+        }
+        for s in sources
+    ]
     return {"answer": answer, "sources": response_sources}
 
 
