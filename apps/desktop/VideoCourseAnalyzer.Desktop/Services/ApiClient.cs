@@ -24,6 +24,19 @@ public sealed class ApiClient
 
     public HttpClient HttpClient { get; }
 
+    private static double? GetDoubleOrNull(JsonNode? node)
+    {
+        if (node is null) return null;
+        try
+        {
+            if (node is JsonValue jv && jv.TryGetValue(out double d))
+                return d;
+            return node.GetValue<double>();
+        }
+        catch { /* ignore */ }
+        return null;
+    }
+
     public sealed class ChatResult
     {
         public string Answer { get; set; } = string.Empty;
@@ -130,8 +143,8 @@ public sealed class ApiClient
                     {
                         ChunkId = item["chunk_id"]?.GetValue<string>() ?? string.Empty,
                         Snippet = item["snippet"]?.GetValue<string>() ?? string.Empty,
-                        T0 = item["t0"]?.GetValue<double?>(),
-                        T1 = item["t1"]?.GetValue<double?>(),
+                        T0 = GetDoubleOrNull(item["t0"]),
+                        T1 = GetDoubleOrNull(item["t1"]),
                     });
             }
         }

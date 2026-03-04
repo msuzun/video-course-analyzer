@@ -147,18 +147,17 @@
               <Border Margin="0,0,0,10" Padding="8" BorderBrush="#E5E5E5" BorderThickness="1" CornerRadius="4">
                 <StackPanel>
                   <DockPanel>
-                    <TextBlock FontWeight="SemiBold" Text="{Binding ChunkId}" />
-                    <Button Width="115"
+                    <TextBlock FontWeight="SemiBold" Text="{Binding TimestampDisplay}" />
+                    <Button Width="120"
                             Height="24"
                             Margin="8,0,0,0"
-                            Content="Copy timestamp"
+                            Content="Copy Timestamp"
                             Command="{Binding DataContext.CopyTimestampCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                             CommandParameter="{Binding}"
                             DockPanel.Dock="Right" />
                   </DockPanel>
-                  <TextBlock Margin="0,4,0,0" Opacity="0.65" Text="{Binding T0, StringFormat=t0: {0:F1}s}" />
-                  <TextBlock Opacity="0.65" Text="{Binding T1, StringFormat=t1: {0:F1}s}" />
-                  <TextBlock Margin="0,6,0,0" Opacity="0.85" TextWrapping="Wrap" Text="{Binding Snippet}" />
+                  <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Text="{Binding Snippet}" />
+                  <TextBlock Margin="0,4,0,0" Opacity="0.7" FontSize="11" Text="{Binding ChunkId}" />
                 </StackPanel>
               </Border>
             </DataTemplate>

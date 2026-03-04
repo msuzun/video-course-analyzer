@@ -278,26 +278,32 @@ public sealed class MainViewModel : ViewModelBase
                 });
 
             var chatResult = await ApiClient.SendChatAsync(jobId, sessionId, question, topK: 6);
-            ChatMessages.Add(
-                new MessageItem
-                {
-                    Role = MessageRole.Assistant,
-                    Text = string.IsNullOrWhiteSpace(chatResult.Answer) ? "Bu bilgi videoda yok." : chatResult.Answer,
-                    Timestamp = DateTime.Now,
-                });
 
-            Sources.Clear();
-            foreach (var source in chatResult.Sources)
+            await Application.Current.Dispatcher.InvokeAsync(() =>
             {
-                Sources.Add(
-                    new SourceItem
+                ChatMessages.Add(
+                    new MessageItem
                     {
-                        ChunkId = source.ChunkId,
-                        Snippet = source.Snippet,
-                        T0 = source.T0,
-                        T1 = source.T1,
+                        Role = MessageRole.Assistant,
+                        Text = string.IsNullOrWhiteSpace(chatResult.Answer)
+                            ? "This topic is not covered in the video."
+                            : chatResult.Answer,
+                        Timestamp = DateTime.Now,
                     });
-            }
+
+                Sources.Clear();
+                foreach (var source in chatResult.Sources)
+                {
+                    Sources.Add(
+                        new SourceItem
+                        {
+                            ChunkId = source.ChunkId ?? string.Empty,
+                            Snippet = source.Snippet ?? string.Empty,
+                            T0 = source.T0,
+                            T1 = source.T1,
+                        });
+                }
+            });
         }
         catch (Exception ex)
         {
@@ -450,7 +456,6 @@ public sealed class MainViewModel : ViewModelBase
             return;
         }
 
-        var t1 = source.T1.HasValue ? source.T1.Value : source.T0.Value;
-        Clipboard.SetText($"{source.T0.Value:F1}-{t1:F1}");
+        Clipboard.SetText(source.TimestampDisplay);
     }
 }
