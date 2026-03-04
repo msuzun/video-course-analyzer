@@ -5,12 +5,20 @@ from typing import Any
 from urllib.parse import urlparse
 from urllib.request import urlopen
 
+import yt_dlp
+
 
 def _is_direct_mp4_url(url: str) -> bool:
     parsed = urlparse(url)
     if parsed.scheme not in {"http", "https"}:
         return False
     return parsed.path.lower().endswith(".mp4")
+
+
+def _is_youtube_url(url: str) -> bool:
+    parsed = urlparse(url)
+    host = (parsed.netloc or "").lower()
+    return "youtube.com" in host or "youtu.be" in host
 
 
 def _download_file(url: str, destination: Path) -> None:
@@ -22,6 +30,35 @@ def _download_file(url: str, destination: Path) -> None:
                 if not chunk:
                     break
                 handle.write(chunk)
+
+
+def _download_with_ytdlp(url: str, input_dir: Path) -> Path:
+    input_dir.mkdir(parents=True, exist_ok=True)
+    output_base = input_dir / "source"
+    ydl_opts = {
+        "format": "bv*+ba/b",
+        "merge_output_format": "mp4",
+        "outtmpl": str(output_base) + ".%(ext)s",
+        "noplaylist": True,
+        "quiet": True,
+        "no_warnings": True,
+    }
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+    except Exception as exc:
+        raise RuntimeError(f"ingest_failed: youtube_download_failed: {exc}") from exc
+
+    candidates = sorted(input_dir.glob("source.*"))
+    if not candidates:
+        raise RuntimeError("ingest_failed: youtube_download_failed: no_output_file")
+
+    mp4_candidate = next((p for p in candidates if p.suffix.lower() == ".mp4"), None)
+    downloaded = mp4_candidate or candidates[0]
+    target = input_dir / "source.mp4"
+    if downloaded != target:
+        downloaded.replace(target)
+    return target
 
 
 def _run_command(command: list[str], error_prefix: str) -> None:
@@ -103,6 +140,7 @@ def run_ingest(job_id: str, data_root: str) -> dict[str, Any]:
 
     source_file = input_dir / "source.mp4"
     job_json_file = input_dir / "job.json"
+    source_input = source_file
 
     if not source_file.exists():
         if not job_json_file.exists():
@@ -112,9 +150,13 @@ def run_ingest(job_id: str, data_root: str) -> dict[str, Any]:
         source_url = str(job_payload.get("source_url") or "")
         if not source_url:
             raise RuntimeError("ingest_failed: missing_source_url_in_job_json")
-        if not _is_direct_mp4_url(source_url):
-            raise RuntimeError("ingest_failed: only_direct_mp4_url_supported")
-        _download_file(source_url, source_file)
+        if _is_direct_mp4_url(source_url):
+            _download_file(source_url, source_file)
+            source_input = source_file
+        elif _is_youtube_url(source_url):
+            source_input = _download_with_ytdlp(source_url, input_dir)
+        else:
+            raise RuntimeError("ingest_failed: unsupported_source_url")
 
     normalized_dir.mkdir(parents=True, exist_ok=True)
     normalized_video = normalized_dir / "video.mp4"
@@ -126,7 +168,7 @@ def run_ingest(job_id: str, data_root: str) -> dict[str, Any]:
             "ffmpeg",
             "-y",
             "-i",
-            str(source_file),
+            str(source_input),
             "-c:v",
             "libx264",
             "-pix_fmt",
@@ -164,7 +206,7 @@ def run_ingest(job_id: str, data_root: str) -> dict[str, Any]:
 
     meta = _extract_meta(normalized_video, normalized_meta)
     return {
-        "source_path": str(source_file),
+        "source_path": str(source_input),
         "video_path": str(normalized_video),
         "audio_path": str(normalized_audio),
         "meta_path": str(normalized_meta),

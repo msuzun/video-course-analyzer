@@ -39,6 +39,7 @@ CHAT_MODEL = os.getenv("CHAT_MODEL", "Qwen/Qwen2.5-1.5B-Instruct")
 CHAT_PROMPT_PATH = os.getenv("CHAT_PROMPT_PATH", "/shared/models/prompts/chat_answer.txt")
 JOB_CREATED_CHANNEL = "jobs.created"
 celery_client = Celery("api_client", broker=REDIS_URL, backend=REDIS_URL)
+CPU_PIPELINE_QUEUE = "cpu_pipeline"
 
 MODEL_MAP = {
     "bge-m3": "BAAI/bge-m3",
@@ -223,7 +224,7 @@ def create_job(payload: CreateJobRequest) -> CreateJobResponse:
         raise HTTPException(status_code=503, detail=f"failed_to_publish_job_event: {exc}") from exc
 
     try:
-        celery_client.send_task("pipeline_run", args=[job_id])
+        celery_client.send_task("pipeline_run", args=[job_id], queue=CPU_PIPELINE_QUEUE)
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"failed_to_enqueue_pipeline_task: {exc}") from exc
 

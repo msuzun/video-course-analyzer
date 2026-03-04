@@ -22,7 +22,15 @@ public sealed class AsyncRelayCommand : ICommand
 
     public async void Execute(object? parameter)
     {
-        await _execute();
+        try
+        {
+            await _execute();
+        }
+        catch
+        {
+            // ViewModel-level commands are expected to handle and surface errors.
+            // Swallow here to prevent unhandled async void exceptions from crashing WPF.
+        }
     }
 
     public void RaiseCanExecuteChanged()

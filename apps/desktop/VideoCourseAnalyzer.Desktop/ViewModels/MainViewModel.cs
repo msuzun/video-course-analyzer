@@ -176,10 +176,28 @@ public sealed class MainViewModel : ViewModelBase
 
     private async Task StartAnalysisAsync()
     {
+        var sourceUrl = NewAnalysisUrl.Trim();
+        if (!Uri.TryCreate(sourceUrl, UriKind.Absolute, out var uri) ||
+            (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            await Application.Current.Dispatcher.InvokeAsync(() =>
+            {
+                LiveLogs.Add("[client] start failed: invalid url");
+                ChatMessages.Add(
+                    new MessageItem
+                    {
+                        Role = MessageRole.System,
+                        Text = "Gecerli bir URL girin (http/https).",
+                        Timestamp = DateTime.Now,
+                    });
+            });
+            return;
+        }
+
         IsStarting = true;
         try
         {
-            var jobId = await ApiClient.CreateJobAsync(NewAnalysisUrl.Trim());
+            var jobId = await ApiClient.CreateJobAsync(sourceUrl);
 
             await Application.Current.Dispatcher.InvokeAsync(() =>
             {
@@ -204,6 +222,20 @@ public sealed class MainViewModel : ViewModelBase
             _eventCts?.Cancel();
             _eventCts = new CancellationTokenSource();
             _ = ListenEventsAsync(jobId, _eventCts.Token);
+        }
+        catch (Exception ex)
+        {
+            await Application.Current.Dispatcher.InvokeAsync(() =>
+            {
+                LiveLogs.Add($"[client] start failed: {ex.Message}");
+                ChatMessages.Add(
+                    new MessageItem
+                    {
+                        Role = MessageRole.System,
+                        Text = $"Analiz baslatilamadi: {ex.Message}",
+                        Timestamp = DateTime.Now,
+                    });
+            });
         }
         finally
         {
@@ -390,7 +422,7 @@ public sealed class MainViewModel : ViewModelBase
         }
         catch
         {
-            briefMarkdown = "Video hazir ✅\n\nVideo brief bulunamadi.";
+            briefMarkdown = "Video brief could not be loaded.";
         }
 
         await Application.Current.Dispatcher.InvokeAsync(() =>
@@ -400,7 +432,7 @@ public sealed class MainViewModel : ViewModelBase
                 new MessageItem
                 {
                     Role = MessageRole.System,
-                    Text = $"Video hazir ✅\n\n{briefMarkdown}",
+                    Text = $"Video analysis complete. Here is the video brief.\n\n{briefMarkdown}",
                     Timestamp = DateTime.Now,
                 });
         });

@@ -17,6 +17,7 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 DATA_ROOT = os.getenv("DATA_ROOT", "/data/jobs")
 
 celery_app = Celery("worker_cpu", broker=REDIS_URL, backend=REDIS_URL)
+RAG_INDEX_QUEUE = "rag_index"
 
 
 def _now_iso() -> str:
@@ -223,7 +224,7 @@ def pipeline_run(job_id: str) -> dict[str, Any]:
         append_live_log(job_id, "chunking step completed")
 
         append_live_log(job_id, "rag_index enqueue started")
-        celery_app.send_task("rag_index", args=[job_id])
+        celery_app.send_task("rag_index", args=[job_id], queue=RAG_INDEX_QUEUE)
         append_live_log(job_id, "rag_index enqueue completed")
 
         update_step_state(
@@ -237,51 +238,51 @@ def pipeline_run(job_id: str) -> dict[str, Any]:
 
         state = update_step_state(
             job_id,
-            status="COMPLETED",
-            current_step=None,
+            status="RAG_INDEX_QUEUED",
+            current_step="rag_index",
             step_name="chunking",
             step_state="COMPLETED",
-            progress=100.0,
+            progress=99.0,
         )
         update_step_state(
             job_id,
-            status="COMPLETED",
-            current_step=None,
+            status="RAG_INDEX_QUEUED",
+            current_step="rag_index",
             step_name="ocr",
             step_state="COMPLETED",
-            progress=100.0,
+            progress=99.0,
         )
         update_step_state(
             job_id,
-            status="COMPLETED",
-            current_step=None,
+            status="RAG_INDEX_QUEUED",
+            current_step="rag_index",
             step_name="keyframes",
             step_state="COMPLETED",
-            progress=100.0,
+            progress=99.0,
         )
         update_step_state(
             job_id,
-            status="COMPLETED",
-            current_step=None,
+            status="RAG_INDEX_QUEUED",
+            current_step="rag_index",
             step_name="scenedetect",
             step_state="COMPLETED",
-            progress=100.0,
+            progress=99.0,
         )
         update_step_state(
             job_id,
-            status="COMPLETED",
-            current_step=None,
+            status="RAG_INDEX_QUEUED",
+            current_step="rag_index",
             step_name="asr",
             step_state="COMPLETED",
-            progress=100.0,
+            progress=99.0,
         )
         update_step_state(
             job_id,
-            status="COMPLETED",
-            current_step=None,
+            status="RAG_INDEX_QUEUED",
+            current_step="rag_index",
             step_name="ingest",
             step_state="COMPLETED",
-            progress=100.0,
+            progress=99.0,
         )
         return {
             "job_id": job_id,

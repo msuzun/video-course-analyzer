@@ -4,3 +4,4 @@ openai-whisper==20240930
 scenedetect==0.6.4
 opencv-python-headless==4.10.0.84
 pytesseract==0.3.13
+yt-dlp>=2025.1.0

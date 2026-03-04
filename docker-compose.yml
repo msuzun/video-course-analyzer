@@ -14,7 +14,7 @@ services:
   api:
     image: python:${PYTHON_VERSION:-3.11}-slim
     working_dir: /app
-    command: sh -c "pip install -r requirements.txt && uvicorn main:app --host 0.0.0.0 --port 8000"
+    command: sh -c "pip install --default-timeout=1000 --retries 10 -r requirements.txt && uvicorn main:app --host 0.0.0.0 --port 8000"
     depends_on:
       - redis
       - qdrant
@@ -35,7 +35,7 @@ services:
   worker-cpu:
     image: python:${PYTHON_VERSION:-3.11}-slim
     working_dir: /app
-    command: sh -c "apt-get update && apt-get install -y --no-install-recommends ffmpeg tesseract-ocr && rm -rf /var/lib/apt/lists/* && pip install -r requirements.txt && celery -A worker:celery_app worker --loglevel=info --pool=solo"
+    command: sh -c "apt-get update && apt-get install -y --no-install-recommends ffmpeg tesseract-ocr && rm -rf /var/lib/apt/lists/* && pip install --upgrade pip setuptools==80.9.0 wheel && pip install --no-build-isolation -r requirements.txt && celery -A worker:celery_app worker --loglevel=info --pool=solo -Q cpu_pipeline"
     depends_on:
       - redis
       - qdrant
@@ -50,7 +50,7 @@ services:
   worker-gpu:
     image: python:${PYTHON_VERSION:-3.11}-slim
     working_dir: /app
-    command: sh -c "pip install -r requirements.txt && celery -A worker:celery_app worker --loglevel=info --pool=solo"
+    command: sh -c "pip install -r requirements.txt && celery -A worker:celery_app worker --loglevel=info --pool=solo -Q writer_llm"
     depends_on:
       - redis
       - qdrant
@@ -68,7 +68,7 @@ services:
   rag-indexer:
     image: python:${PYTHON_VERSION:-3.11}-slim
     working_dir: /app
-    command: sh -c "pip install -r requirements.txt && celery -A indexer:celery_app worker --loglevel=info --pool=solo"
+    command: sh -c "pip install -r requirements.txt && celery -A indexer:celery_app worker --loglevel=info --pool=solo -Q rag_index"
     depends_on:
       - redis
       - qdrant
