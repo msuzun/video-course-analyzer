@@ -20,10 +20,25 @@
       <Grid>
         <Grid.RowDefinitions>
           <RowDefinition Height="Auto" />
+          <RowDefinition Height="Auto" />
           <RowDefinition Height="*" />
         </Grid.RowDefinitions>
         <TextBlock FontSize="18" FontWeight="SemiBold" Text="Library" />
-        <ListBox Grid.Row="1"
+        <StackPanel Grid.Row="1" Margin="0,10,0,10">
+          <TextBlock FontWeight="SemiBold" Text="New Analysis" />
+          <DockPanel Margin="0,6,0,0">
+            <Button Width="80"
+                    Height="30"
+                    Margin="8,0,0,0"
+                    Content="Start"
+                    Command="{Binding StartAnalysisCommand}"
+                    DockPanel.Dock="Right" />
+            <TextBox Height="30"
+                     VerticalContentAlignment="Center"
+                     Text="{Binding NewAnalysisUrl, UpdateSourceTrigger=PropertyChanged}" />
+          </DockPanel>
+        </StackPanel>
+        <ListBox Grid.Row="2"
                  Margin="0,10,0,0"
                  ItemsSource="{Binding Jobs}"
                  SelectedItem="{Binding SelectedJob}">
@@ -43,11 +58,46 @@
       <Grid>
         <Grid.RowDefinitions>
           <RowDefinition Height="Auto" />
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="Auto" />
           <RowDefinition Height="*" />
           <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-        <TextBlock FontSize="18" FontWeight="SemiBold" Text="Chat" />
+        <TextBlock FontSize="18" FontWeight="SemiBold" Text="Analysis Monitor" />
+        <ProgressBar Grid.Row="1" Height="18" Margin="0,10,0,0" Minimum="0" Maximum="100" Value="{Binding ProgressValue}" />
+        <DockPanel Grid.Row="2" Margin="0,8,0,0">
+          <TextBlock FontWeight="SemiBold" Text="Status:" />
+          <TextBlock Margin="6,0,12,0" Text="{Binding CurrentStatus}" />
+          <TextBlock FontWeight="SemiBold" Text="Current Step:" />
+          <TextBlock Margin="6,0,0,0" Text="{Binding CurrentStep}" />
+        </DockPanel>
+        <Grid Grid.Row="3" Margin="0,10,0,10">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="2*" />
+            <ColumnDefinition Width="3*" />
+          </Grid.ColumnDefinitions>
+          <GroupBox Grid.Column="0" Header="Step Timeline" Margin="0,0,8,0">
+            <ListBox ItemsSource="{Binding StepTimeline}">
+              <ListBox.ItemTemplate>
+                <DataTemplate>
+                  <DockPanel Margin="0,0,0,6">
+                    <TextBlock Width="90" FontWeight="SemiBold" Text="{Binding Name}" />
+                    <TextBlock Width="90" Opacity="0.7" Text="{Binding State}" />
+                    <TextBlock Opacity="0.7" Text="{Binding Progress, StringFormat={}{0:F1}%}" />
+                  </DockPanel>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+          </GroupBox>
+          <GroupBox Grid.Column="1" Header="Live Log">
+            <ListBox ItemsSource="{Binding LiveLogs}" />
+          </GroupBox>
+        </Grid>
+        <DockPanel Grid.Row="4">
+          <TextBlock FontStyle="Italic" Opacity="0.7" Text="State güncellemeleri SSE ile gerçek zamanlı izlenir." />
+        </DockPanel>
         <ListBox Grid.Row="1"
+                 Visibility="Collapsed"
                  Margin="0,10,0,10"
                  ItemsSource="{Binding ChatMessages}">
           <ListBox.ItemTemplate>
@@ -59,7 +109,7 @@
             </DataTemplate>
           </ListBox.ItemTemplate>
         </ListBox>
-        <DockPanel Grid.Row="2">
+        <DockPanel Grid.Row="4" Visibility="Collapsed">
           <TextBox Height="34" VerticalContentAlignment="Center" Text="Mesaj yaz..." Foreground="#777777" />
         </DockPanel>
       </Grid>
