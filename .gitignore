@@ -1,4 +1,4 @@
-﻿# Python
+# Python
 __pycache__/
 *.py[cod]
 *.pyo
@@ -6,6 +6,8 @@ __pycache__/
 *.so
 .venv/
 venv/
+.mypy_cache/
+.ruff_cache/
 
 # Build/Test
 .pytest_cache/
@@ -21,7 +23,19 @@ htmlcov/
 .idea/
 .DS_Store
 Thumbs.db
+*.user
+*.suo
+
+# .NET / WPF
+**/bin/
+**/obj/
+*.nupkg
+*.snupkg
+
+# Docker
+docker-compose.override.yml
 
 # Data runtime artifacts
 data/jobs/*
 !data/jobs/.gitkeep
+data/qdrant/
