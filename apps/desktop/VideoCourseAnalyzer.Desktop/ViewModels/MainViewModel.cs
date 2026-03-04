@@ -286,7 +286,7 @@ public sealed class MainViewModel : ViewModelBase
                     {
                         Role = MessageRole.Assistant,
                         Text = string.IsNullOrWhiteSpace(chatResult.Answer)
-                            ? "This topic is not covered in the video."
+                            ? "This topic does not appear in the analyzed video."
                             : chatResult.Answer,
                         Timestamp = DateTime.Now,
                     });

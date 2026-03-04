@@ -121,12 +121,72 @@ def _save_chat_session(job_id: str, session_id: str, data: dict[str, Any]) -> No
     session_file.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+RAG_NOT_FOUND = "This topic does not appear in the analyzed video."
+
 RAG_SYSTEM_PROMPT = (
     "You are a video learning assistant.\n"
     "Answer ONLY using the provided context.\n"
-    "If the answer does not exist in the context say:\n"
-    "'This topic is not covered in the video.'"
+    f"If the answer does not exist in the context say:\n\"{RAG_NOT_FOUND}\""
 )
+
+QUERY_REWRITE_PROMPT = (
+    "Rewrite the following question into a clear semantic search query in English "
+    "that would find relevant segments in an educational video. "
+    "Output ONLY the rewritten question, nothing else.\n\n"
+    "Question: {question}\n\n"
+    "Rewritten query:"
+)
+
+CONTEXT_COMPRESS_PROMPT = (
+    "Summarize the following video transcript excerpts into one short paragraph. "
+    "Preserve key facts and mention timestamps (MM:SS) where relevant. "
+    "Output only the summary.\n\n"
+    "Excerpts:\n{excerpts}\n\n"
+    "Summary:"
+)
+
+STRUCTURED_ANSWER_PROMPT = (
+    "You are a video learning assistant. Answer using ONLY the provided context.\n\n"
+    "Your response MUST have exactly three parts:\n\n"
+    "1. Explanation: One or two paragraphs explaining the topic.\n\n"
+    "2. Key ideas: A bullet list (start each line with - ).\n\n"
+    "3. Where in the video: List timestamps with short labels, one per line, format: MM:SS - label\n\n"
+    f"If the answer does not exist in the context, say only: \"{RAG_NOT_FOUND}\"\n\n"
+    "CONTEXT:\n{context}\n\n"
+    "QUESTION: {question}\n\n"
+    "Response:"
+)
+
+
+def _llm_generate(prompt: str, max_new_tokens: int = 180, strip_prompt: bool = True) -> str:
+    """Run LLM and return generated text, optionally with prompt stripped."""
+    try:
+        generator = _get_chat_generator()
+        output = generator(prompt, max_new_tokens=max_new_tokens, do_sample=False, temperature=0.1)
+        text = str(output[0].get("generated_text", "")).strip()
+        if strip_prompt and text.startswith(prompt):
+            text = text[len(prompt) :].strip()
+        return text
+    except Exception:
+        return ""
+
+
+def _rewrite_query(user_message: str) -> str:
+    """Rewrite user question into a semantic search query for retrieval."""
+    prompt = QUERY_REWRITE_PROMPT.format(question=user_message)
+    rewritten = _llm_generate(prompt, max_new_tokens=80).strip()
+    if rewritten and len(rewritten) > 5:
+        return rewritten
+    return user_message
+
+
+def _summarize_chunks(sources: list[dict[str, Any]]) -> str:
+    """Summarize a list of chunk snippets into one short paragraph (for context compression)."""
+    if not sources:
+        return ""
+    excerpts = _build_rag_context(sources)
+    prompt = CONTEXT_COMPRESS_PROMPT.format(excerpts=excerpts)
+    return _llm_generate(prompt, max_new_tokens=300).strip()
 
 
 def _seconds_to_mmss(seconds: float | int | None) -> str:
@@ -153,6 +213,23 @@ def _build_rag_context(sources: list[dict[str, Any]]) -> str:
         text = str(s.get("snippet") or "").strip()
         blocks.append(f"{header}\n{text}")
     return "\n\n".join(blocks)
+
+
+MAX_CHUNKS_FOR_LLM = 6
+
+
+def _build_context_for_answer(sources: list[dict[str, Any]]) -> str:
+    """Build context for the answer LLM. If more than 6 chunks, keep first 6 and summarize the rest."""
+    if not sources:
+        return ""
+    if len(sources) <= MAX_CHUNKS_FOR_LLM:
+        return _build_rag_context(sources)
+    main = _build_rag_context(sources[:MAX_CHUNKS_FOR_LLM])
+    extra = sources[MAX_CHUNKS_FOR_LLM:]
+    summary = _summarize_chunks(extra)
+    if summary:
+        return f"{main}\n\nAdditional context (summarized):\n{summary}"
+    return main
 
 
 def _retrieve_sources(job_id: str, query: str, top_k: int) -> list[dict[str, Any]]:
@@ -197,36 +274,24 @@ def _retrieve_sources(job_id: str, query: str, top_k: int) -> list[dict[str, Any
 
 
 def _generate_chat_answer(message: str, sources: list[dict[str, Any]]) -> str:
-    """Generate RAG answer from retrieved chunks using fixed video-learning prompt."""
+    """Generate structured RAG answer: explanation, key ideas, reference timestamps."""
     if not sources:
-        return "This topic is not covered in the video."
+        return RAG_NOT_FOUND
 
-    context_text = _build_rag_context(sources)
-    prompt = (
-        f"{RAG_SYSTEM_PROMPT}\n\n"
-        f"CONTEXT:\n{context_text}\n\n"
-        f"QUESTION: {message}\n\n"
-        "ANSWER:"
-    )
+    context_text = _build_context_for_answer(sources)
+    prompt = STRUCTURED_ANSWER_PROMPT.format(context=context_text, question=message)
 
-    try:
-        generator = _get_chat_generator()
-        output = generator(prompt, max_new_tokens=256, do_sample=False, temperature=0.1)
-        generated = str(output[0].get("generated_text", "")).strip()
-        answer = generated[len(prompt) :].strip() if generated.startswith(prompt) else generated
-        # Truncate at first newline for single-paragraph answer when model adds extra text
-        if "\n" in answer:
-            answer = answer.split("\n")[0].strip()
-        if not answer:
-            return "This topic is not covered in the video."
-        return answer
-    except Exception:
+    answer = _llm_generate(prompt, max_new_tokens=450, strip_prompt=True)
+    if not answer:
         if sources:
             return (
-                str(sources[0].get("snippet") or "This topic is not covered in the video.").strip()
-                or "This topic is not covered in the video."
+                str(sources[0].get("snippet") or RAG_NOT_FOUND).strip()
+                or RAG_NOT_FOUND
             )
-        return "This topic is not covered in the video."
+        return RAG_NOT_FOUND
+    if RAG_NOT_FOUND.lower() in answer.lower() and len(answer.strip()) < 120:
+        return RAG_NOT_FOUND
+    return answer.strip()
 
 
 @app.get("/health")
@@ -437,8 +502,9 @@ def chat_with_job(job_id: str, payload: ChatRequest) -> dict[str, Any]:
     if str(session.get("job_id")) != job_id:
         raise HTTPException(status_code=400, detail="chat_session_job_mismatch")
 
+    search_query = _rewrite_query(payload.message)
     try:
-        sources = _retrieve_sources(job_id, payload.message, payload.top_k)
+        sources = _retrieve_sources(job_id, search_query, payload.top_k)
     except Exception as exc:
         raise HTTPException(status_code=404, detail=f"chat_retrieve_failed: {exc}") from exc
 
