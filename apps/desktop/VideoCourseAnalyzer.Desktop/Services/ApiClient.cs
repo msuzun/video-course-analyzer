@@ -24,6 +24,20 @@ public sealed class ApiClient
 
     public HttpClient HttpClient { get; }
 
+    public sealed class ChatResult
+    {
+        public string Answer { get; set; } = string.Empty;
+        public List<ChatSource> Sources { get; set; } = [];
+    }
+
+    public sealed class ChatSource
+    {
+        public string ChunkId { get; set; } = string.Empty;
+        public string Snippet { get; set; } = string.Empty;
+        public double? T0 { get; set; }
+        public double? T1 { get; set; }
+    }
+
     public async Task<string> CreateJobAsync(string sourceUrl, CancellationToken cancellationToken = default)
     {
         var requestPayload = new
@@ -57,6 +71,72 @@ public sealed class ApiClient
         using var response = await HttpClient.GetAsync($"/jobs/{jobId}/artifacts/{artifactKey}", cancellationToken);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadAsStringAsync(cancellationToken);
+    }
+
+    public async Task<string> CreateChatSessionAsync(string jobId, CancellationToken cancellationToken = default)
+    {
+        using var response = await HttpClient.PostAsync($"/jobs/{jobId}/chat/sessions", content: null, cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        var raw = await response.Content.ReadAsStringAsync(cancellationToken);
+        var doc = JsonNode.Parse(raw);
+        var sessionId = doc?["session_id"]?.GetValue<string>();
+        if (string.IsNullOrWhiteSpace(sessionId))
+        {
+            throw new InvalidOperationException("API response does not include session_id.");
+        }
+
+        return sessionId;
+    }
+
+    public async Task<ChatResult> SendChatAsync(
+        string jobId,
+        string sessionId,
+        string message,
+        int topK,
+        CancellationToken cancellationToken = default)
+    {
+        var payload = new
+        {
+            session_id = sessionId,
+            message,
+            top_k = topK,
+        };
+        var json = JsonSerializer.Serialize(payload);
+        using var content = new StringContent(json, Encoding.UTF8, "application/json");
+        using var response = await HttpClient.PostAsync($"/jobs/{jobId}/chat", content, cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        var raw = await response.Content.ReadAsStringAsync(cancellationToken);
+        var node = JsonNode.Parse(raw) as JsonObject;
+        if (node is null)
+        {
+            throw new InvalidOperationException("API response is invalid.");
+        }
+
+        var result = new ChatResult
+        {
+            Answer = node["answer"]?.GetValue<string>() ?? string.Empty,
+            Sources = [],
+        };
+
+        var sources = node["sources"] as JsonArray;
+        if (sources is not null)
+        {
+            foreach (var item in sources.OfType<JsonObject>())
+            {
+                result.Sources.Add(
+                    new ChatSource
+                    {
+                        ChunkId = item["chunk_id"]?.GetValue<string>() ?? string.Empty,
+                        Snippet = item["snippet"]?.GetValue<string>() ?? string.Empty,
+                        T0 = item["t0"]?.GetValue<double?>(),
+                        T1 = item["t1"]?.GetValue<double?>(),
+                    });
+            }
+        }
+
+        return result;
     }
 
     public async Task ListenJobEventsAsync(
