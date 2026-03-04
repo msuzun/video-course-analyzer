@@ -1,11 +1,13 @@
+import asyncio
 import json
 import os
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, StreamingResponse
 from redis import Redis
 from redis.exceptions import RedisError
 
@@ -25,6 +27,19 @@ app = FastAPI(title="video-course-analyzer-api")
 DATA_ROOT = os.getenv("DATA_ROOT", "/data/jobs")
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 JOB_CREATED_CHANNEL = "jobs.created"
+
+
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _format_sse(event_type: str, payload: Any) -> str:
+    message = {
+        "type": event_type,
+        "ts": _utc_now_iso(),
+        "payload": payload,
+    }
+    return f"event: {event_type}\ndata: {json.dumps(message, ensure_ascii=False)}\n\n"
 
 
 @app.get("/health")
@@ -89,6 +104,64 @@ def get_job(job_id: str) -> dict[str, Any]:
         "job": job_json,
         "artifacts": artifacts,
     }
+
+
+@app.get("/jobs/{job_id}/events")
+async def job_events(job_id: str, request: Request) -> StreamingResponse:
+    job_dir = get_job_dir(DATA_ROOT, job_id)
+    if not job_dir.exists():
+        raise HTTPException(status_code=404, detail=f"job_not_found: {job_id}")
+
+    state_file = job_dir / "state.json"
+    log_file = job_dir / "logs" / "live.log"
+
+    async def event_stream() -> Any:
+        job_json = load_job_json(job_dir)
+        state = load_or_create_state(job_dir, job_json)
+        state_signature = json.dumps(state, sort_keys=True)
+        log_offset = 0
+
+        yield _format_sse("state", state)
+
+        while True:
+            if await request.is_disconnected():
+                break
+
+            try:
+                if state_file.exists():
+                    next_state = load_or_create_state(job_dir, load_job_json(job_dir))
+                    next_signature = json.dumps(next_state, sort_keys=True)
+                    if next_signature != state_signature:
+                        state_signature = next_signature
+                        yield _format_sse("state", next_state)
+            except OSError:
+                pass
+
+            if log_file.exists() and log_file.is_file():
+                try:
+                    current_size = log_file.stat().st_size
+                    if current_size < log_offset:
+                        log_offset = 0
+
+                    if current_size > log_offset:
+                        with log_file.open("r", encoding="utf-8", errors="replace") as handle:
+                            handle.seek(log_offset)
+                            for line in handle:
+                                line_text = line.rstrip("\r\n")
+                                if line_text:
+                                    yield _format_sse("log", {"line": line_text})
+                            log_offset = handle.tell()
+                except OSError:
+                    pass
+
+            await asyncio.sleep(1)
+
+    headers = {
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "X-Accel-Buffering": "no",
+    }
+    return StreamingResponse(event_stream(), media_type="text/event-stream", headers=headers)
 
 
 @app.get("/jobs/{job_id}/artifacts")
