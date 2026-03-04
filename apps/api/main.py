@@ -3,16 +3,20 @@ import json
 import os
 import uuid
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
 from celery import Celery
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
+from qdrant_client import QdrantClient
 from redis import Redis
 from redis.exceptions import RedisError
+from sentence_transformers import SentenceTransformer
 
 from schemas.job import CreateJobRequest, CreateJobResponse, JobRecord
+from schemas.search import SearchRequest
 from storage import (
     build_default_state,
     get_job_dir,
@@ -27,8 +31,15 @@ app = FastAPI(title="video-course-analyzer-api")
 
 DATA_ROOT = os.getenv("DATA_ROOT", "/data/jobs")
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
+QDRANT_URL = os.getenv("QDRANT_URL", "http://qdrant:6333")
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "bge-m3").strip().lower()
 JOB_CREATED_CHANNEL = "jobs.created"
 celery_client = Celery("api_client", broker=REDIS_URL, backend=REDIS_URL)
+
+MODEL_MAP = {
+    "bge-m3": "BAAI/bge-m3",
+    "e5-large": "intfloat/e5-large-v2",
+}
 
 
 def _utc_now_iso() -> str:
@@ -42,6 +53,22 @@ def _format_sse(event_type: str, payload: Any) -> str:
         "payload": payload,
     }
     return f"event: {event_type}\ndata: {json.dumps(message, ensure_ascii=False)}\n\n"
+
+
+def _resolve_model_name(model_key: str) -> str:
+    if model_key in MODEL_MAP:
+        return MODEL_MAP[model_key]
+    return model_key
+
+
+@lru_cache(maxsize=1)
+def _get_encoder() -> SentenceTransformer:
+    return SentenceTransformer(_resolve_model_name(EMBEDDING_MODEL))
+
+
+@lru_cache(maxsize=1)
+def _get_qdrant_client() -> QdrantClient:
+    return QdrantClient(url=QDRANT_URL)
 
 
 @app.get("/health")
@@ -179,6 +206,50 @@ def get_job_artifacts(job_id: str) -> dict[str, Any]:
 
     artifacts = list_artifacts(job_dir)
     return {"job_id": job_id, "artifacts": artifacts}
+
+
+@app.post("/jobs/{job_id}/search")
+def search_job(job_id: str, payload: SearchRequest) -> dict[str, Any]:
+    collection_name = f"video_{job_id}"
+
+    try:
+        encoder = _get_encoder()
+        vector = encoder.encode([payload.query], normalize_embeddings=True, show_progress_bar=False)[0]
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"embedding_failed: {exc}") from exc
+
+    try:
+        client = _get_qdrant_client()
+        hits = client.search(
+            collection_name=collection_name,
+            query_vector=vector.tolist(),
+            limit=payload.top_k,
+            with_payload=True,
+            with_vectors=False,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=f"search_failed_or_collection_not_found: {collection_name} ({exc})",
+        ) from exc
+
+    results: list[dict[str, Any]] = []
+    for hit in hits:
+        data = hit.payload or {}
+        snippet = str(data.get("text") or "").strip()
+        if len(snippet) > 320:
+            snippet = snippet[:317] + "..."
+        results.append(
+            {
+                "t0": data.get("t0"),
+                "t1": data.get("t1"),
+                "snippet": snippet,
+                "chunk_id": data.get("chunk_id"),
+                "score": float(hit.score),
+            }
+        )
+
+    return {"results": results}
 
 
 @app.get("/jobs/{job_id}/artifacts/{key}")
