@@ -8,6 +8,8 @@ from celery import Celery
 
 from steps.asr_whisper import run_asr_whisper
 from steps.ingest import run_ingest
+from steps.keyframes import run_keyframes
+from steps.scenedetect import run_scene_detect
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 DATA_ROOT = os.getenv("DATA_ROOT", "/data/jobs")
@@ -134,7 +136,65 @@ def pipeline_run(job_id: str) -> dict[str, Any]:
         asr_result = run_asr_whisper(job_id, DATA_ROOT)
         append_live_log(job_id, "asr step completed")
 
+        update_step_state(
+            job_id,
+            status="VISION_RUNNING",
+            current_step="scenedetect",
+            step_name="asr",
+            step_state="COMPLETED",
+            progress=75.0,
+        )
+        update_step_state(
+            job_id,
+            status="VISION_RUNNING",
+            current_step="scenedetect",
+            step_name="scenedetect",
+            step_state="RUNNING",
+            progress=80.0,
+        )
+
+        append_live_log(job_id, "scenedetect step started")
+        scenes_result = run_scene_detect(job_id, DATA_ROOT)
+        append_live_log(job_id, "scenedetect step completed")
+
+        update_step_state(
+            job_id,
+            status="VISION_RUNNING",
+            current_step="keyframes",
+            step_name="scenedetect",
+            step_state="COMPLETED",
+            progress=88.0,
+        )
+        update_step_state(
+            job_id,
+            status="VISION_RUNNING",
+            current_step="keyframes",
+            step_name="keyframes",
+            step_state="RUNNING",
+            progress=90.0,
+        )
+
+        append_live_log(job_id, "keyframes step started")
+        keyframes_result = run_keyframes(job_id, DATA_ROOT)
+        append_live_log(job_id, "keyframes step completed")
+
         state = update_step_state(
+            job_id,
+            status="COMPLETED",
+            current_step=None,
+            step_name="keyframes",
+            step_state="COMPLETED",
+            progress=100.0,
+        )
+        update_step_state(
+            job_id,
+            status="COMPLETED",
+            current_step=None,
+            step_name="scenedetect",
+            step_state="COMPLETED",
+            progress=100.0,
+        )
+        update_step_state(
             job_id,
             status="COMPLETED",
             current_step=None,
@@ -156,6 +216,8 @@ def pipeline_run(job_id: str) -> dict[str, Any]:
             "progress": state["progress"],
             "ingest": ingest_result,
             "asr": asr_result,
+            "scenes": scenes_result,
+            "keyframes": keyframes_result,
         }
     except Exception as exc:
         append_live_log(job_id, f"pipeline step failed: {exc}")
