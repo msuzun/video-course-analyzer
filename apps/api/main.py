@@ -5,10 +5,12 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from redis import Redis
 from redis.exceptions import RedisError
 
 from schemas.job import CreateJobRequest, CreateJobResponse, JobRecord
+from storage import compute_progress, get_job_dir, list_artifacts, load_job_json, load_steps, resolve_artifact
 
 app = FastAPI(title="video-course-analyzer-api")
 
@@ -55,3 +57,61 @@ def create_job(payload: CreateJobRequest) -> CreateJobResponse:
         raise HTTPException(status_code=503, detail=f"failed_to_publish_job_event: {exc}") from exc
 
     return CreateJobResponse(job_id=job_id)
+
+
+@app.get("/jobs/{job_id}")
+def get_job(job_id: str) -> dict[str, Any]:
+    job_dir = get_job_dir(DATA_ROOT, job_id)
+    if not job_dir.exists():
+        raise HTTPException(status_code=404, detail=f"job_not_found: {job_id}")
+
+    job_json = load_job_json(job_dir)
+    if job_json is None:
+        raise HTTPException(status_code=404, detail=f"job_definition_not_found: input/job.json for {job_id}")
+
+    steps = load_steps(job_dir)
+    status = str(job_json.get("state") or "QUEUED")
+    progress = compute_progress(steps, status)
+    artifacts = list_artifacts(job_dir)
+
+    return {
+        "job_id": job_id,
+        "status": status,
+        "progress": progress,
+        "job": job_json,
+        "steps": steps,
+        "artifacts": artifacts,
+    }
+
+
+@app.get("/jobs/{job_id}/artifacts")
+def get_job_artifacts(job_id: str) -> dict[str, Any]:
+    job_dir = get_job_dir(DATA_ROOT, job_id)
+    if not job_dir.exists():
+        raise HTTPException(status_code=404, detail=f"job_not_found: {job_id}")
+
+    artifacts = list_artifacts(job_dir)
+    return {"job_id": job_id, "artifacts": artifacts}
+
+
+@app.get("/jobs/{job_id}/artifacts/{key}")
+def get_job_artifact(job_id: str, key: str) -> FileResponse:
+    job_dir = get_job_dir(DATA_ROOT, job_id)
+    if not job_dir.exists():
+        raise HTTPException(status_code=404, detail=f"job_not_found: {job_id}")
+
+    try:
+        artifact_path, artifact_type, relative_path = resolve_artifact(job_dir, key)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"artifact_key_not_found: {key}")
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"artifact_file_not_found: {key}")
+
+    media_type_map = {
+        "json": "application/json",
+        "csv": "text/csv; charset=utf-8",
+        "markdown": "text/markdown; charset=utf-8",
+    }
+    media_type = media_type_map.get(artifact_type, "text/plain; charset=utf-8")
+
+    return FileResponse(path=artifact_path, media_type=media_type, filename=Path(relative_path).name)
