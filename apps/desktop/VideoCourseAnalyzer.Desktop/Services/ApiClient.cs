@@ -49,6 +49,16 @@ public sealed class ApiClient
         return jobId;
     }
 
+    public async Task<string> GetArtifactTextAsync(
+        string jobId,
+        string artifactKey,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await HttpClient.GetAsync($"/jobs/{jobId}/artifacts/{artifactKey}", cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadAsStringAsync(cancellationToken);
+    }
+
     public async Task ListenJobEventsAsync(
         string jobId,
         Func<string, JsonObject, Task> onEvent,

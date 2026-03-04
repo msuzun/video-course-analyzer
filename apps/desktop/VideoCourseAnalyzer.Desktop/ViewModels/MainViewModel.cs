@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Collections.Generic;
 using System.Text.Json.Nodes;
 using System.Windows;
 using VideoCourseAnalyzer.Desktop.Models;
@@ -9,6 +10,7 @@ namespace VideoCourseAnalyzer.Desktop.ViewModels;
 public sealed class MainViewModel : ViewModelBase
 {
     private readonly AsyncRelayCommand _startAnalysisCommand;
+    private readonly HashSet<string> _briefLoadedJobs = [];
     private CancellationTokenSource? _eventCts;
     private bool _isStarting;
     private string _newAnalysisUrl = string.Empty;
@@ -29,7 +31,7 @@ public sealed class MainViewModel : ViewModelBase
 
     public ObservableCollection<JobItem> Jobs { get; } = [];
 
-    public ObservableCollection<ChatMessageItem> ChatMessages { get; } = [];
+    public ObservableCollection<MessageItem> ChatMessages { get; } = [];
 
     public ObservableCollection<SourceItem> Sources { get; } = [];
 
@@ -155,6 +157,7 @@ public sealed class MainViewModel : ViewModelBase
                 ProgressValue = 0;
                 StepTimeline.Clear();
                 LiveLogs.Clear();
+                ChatMessages.Clear();
                 NewAnalysisUrl = string.Empty;
             });
 
@@ -237,6 +240,13 @@ public sealed class MainViewModel : ViewModelBase
                     });
             }
         }
+
+        if ((string.Equals(CurrentStatus, "DONE", StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(CurrentStatus, "COMPLETED", StringComparison.OrdinalIgnoreCase)) &&
+            _briefLoadedJobs.Add(jobId))
+        {
+            _ = LoadBriefMessageAsync(jobId);
+        }
     }
 
     private void ApplyLogEvent(JsonObject data)
@@ -258,5 +268,30 @@ public sealed class MainViewModel : ViewModelBase
         {
             LiveLogs.RemoveAt(0);
         }
+    }
+
+    private async Task LoadBriefMessageAsync(string jobId)
+    {
+        string briefMarkdown;
+        try
+        {
+            briefMarkdown = await ApiClient.GetArtifactTextAsync(jobId, "video_brief_md");
+        }
+        catch
+        {
+            briefMarkdown = "Video hazir ✅\n\nVideo brief bulunamadi.";
+        }
+
+        await Application.Current.Dispatcher.InvokeAsync(() =>
+        {
+            Sources.Clear();
+            ChatMessages.Add(
+                new MessageItem
+                {
+                    Role = MessageRole.System,
+                    Text = $"Video hazir ✅\n\n{briefMarkdown}",
+                    Timestamp = DateTime.Now,
+                });
+        });
     }
 }
