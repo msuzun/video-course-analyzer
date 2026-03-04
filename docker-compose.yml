@@ -43,6 +43,24 @@ services:
       - ./apps/worker-cpu:/app
       - ./data/jobs:/data/jobs
 
+  worker-gpu:
+    image: python:${PYTHON_VERSION:-3.11}-slim
+    working_dir: /app
+    command: sh -c "pip install -r requirements.txt && celery -A worker:celery_app worker --loglevel=info --pool=solo"
+    depends_on:
+      - redis
+      - qdrant
+    environment:
+      DATA_ROOT: /data/jobs
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+      WRITER_MODEL: ${WRITER_MODEL:-Qwen/Qwen2.5-1.5B-Instruct}
+      VIDEO_BRIEF_PROMPT_PATH: /shared/models/prompts/video_brief.txt
+    volumes:
+      - ./apps/worker-gpu:/app
+      - ./data/jobs:/data/jobs
+      - ./shared:/shared
+
   rag-indexer:
     image: python:${PYTHON_VERSION:-3.11}-slim
     working_dir: /app
@@ -58,3 +76,4 @@ services:
     volumes:
       - ./apps/rag:/app
       - ./data/jobs:/data/jobs
+

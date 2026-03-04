@@ -4,6 +4,8 @@ from pathlib import Path
 from typing import Any
 
 ARTIFACT_REGISTRY: dict[str, dict[str, str]] = {
+    "video_brief_json": {"path": "outputs/video_brief.json", "type": "json"},
+    "video_brief_md": {"path": "outputs/video_brief.md", "type": "markdown"},
     "transcript_md": {"path": "outputs/transcript.md", "type": "markdown"},
     "summary_md": {"path": "outputs/summary.md", "type": "markdown"},
     "summary_json": {"path": "outputs/summary.json", "type": "json"},

@@ -95,4 +95,5 @@ def rag_index(job_id: str) -> dict[str, Any]:
         )
 
     client.upsert(collection_name=collection_name, points=points, wait=True)
+    celery_app.send_task("writer_llm", args=[job_id])
     return {"job_id": job_id, "collection": collection_name, "points_upserted": len(points), "model": hf_model_name}
