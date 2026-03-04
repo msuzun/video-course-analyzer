@@ -2,5 +2,18 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              StartupUri="Views/MainWindow.xaml">
-  <Application.Resources />
+  <Application.Resources>
+    <ResourceDictionary>
+      <!-- Modern palette -->
+      <SolidColorBrush x:Key="PrimaryBrush" Color="#6C5CE7" />
+      <SolidColorBrush x:Key="BackgroundBrush" Color="#F5F6FA" />
+      <SolidColorBrush x:Key="UserBubbleBrush" Color="#EDE7FF" />
+      <SolidColorBrush x:Key="AssistantBubbleBrush" Color="White" />
+      <SolidColorBrush x:Key="BorderLightBrush" Color="#E8E8ED" />
+      <SolidColorBrush x:Key="TextPrimaryBrush" Color="#2D3436" />
+      <SolidColorBrush x:Key="TextSecondaryBrush" Color="#636E72" />
+      <SolidColorBrush x:Key="PanelBgBrush" Color="White" />
+      <FontFamily x:Key="AppFont">Segoe UI</FontFamily>
+    </ResourceDictionary>
+  </Application.Resources>
 </Application>

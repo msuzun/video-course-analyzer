@@ -3,50 +3,95 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:models="clr-namespace:VideoCourseAnalyzer.Desktop.Models"
         mc:Ignorable="d"
         Title="Video Course Analyzer"
-        Width="1400"
-        Height="850"
-        MinWidth="1000"
-        MinHeight="650">
-  <Grid Margin="12">
+        Width="1440"
+        Height="900"
+        MinWidth="1100"
+        MinHeight="700"
+        Background="{StaticResource BackgroundBrush}"
+        FontFamily="{StaticResource AppFont}">
+
+  <Grid>
     <Grid.ColumnDefinitions>
-      <ColumnDefinition Width="2*" />
-      <ColumnDefinition Width="5*" />
-      <ColumnDefinition Width="3*" />
+      <ColumnDefinition Width="320" MinWidth="260" />
+      <ColumnDefinition Width="8" />
+      <ColumnDefinition Width="*" MinWidth="400" />
+      <ColumnDefinition Width="8" />
+      <ColumnDefinition Width="360" MinWidth="280" />
     </Grid.ColumnDefinitions>
 
-    <Border Grid.Column="0" Margin="0,0,10,0" Padding="10" BorderBrush="#DDDDDD" BorderThickness="1" CornerRadius="6">
-      <Grid>
+    <!-- Left: Video Library -->
+    <Border Grid.Column="0" Background="{StaticResource PanelBgBrush}" CornerRadius="12" Margin="16,16,0,16"
+            BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="1">
+      <Grid Margin="20">
         <Grid.RowDefinitions>
           <RowDefinition Height="Auto" />
           <RowDefinition Height="Auto" />
           <RowDefinition Height="*" />
         </Grid.RowDefinitions>
-        <TextBlock FontSize="18" FontWeight="SemiBold" Text="Library" />
-        <StackPanel Grid.Row="1" Margin="0,10,0,10">
-          <TextBlock FontWeight="SemiBold" Text="New Analysis" />
-          <DockPanel Margin="0,6,0,0">
-            <Button Width="80"
-                    Height="30"
-                    Margin="8,0,0,0"
-                    Content="Start"
-                    Command="{Binding StartAnalysisCommand}"
-                    DockPanel.Dock="Right" />
-            <TextBox Height="30"
-                     VerticalContentAlignment="Center"
-                     Text="{Binding NewAnalysisUrl, UpdateSourceTrigger=PropertyChanged}" />
-          </DockPanel>
+        <TextBlock Text="Video Library" FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" />
+        <StackPanel Grid.Row="1" Margin="0,20,0,16">
+          <TextBlock Text="New analysis" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8" />
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Border Grid.Column="0" CornerRadius="8" BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="1"
+                    Background="White" Margin="0,0,8,0">
+              <TextBox x:Name="NewAnalysisUrlBox" BorderThickness="0" Padding="12,10"
+                       VerticalContentAlignment="Center" FontSize="13"
+                       Text="{Binding NewAnalysisUrl, UpdateSourceTrigger=PropertyChanged}" />
+            </Border>
+            <Button Grid.Column="1" Content="Start" Command="{Binding StartAnalysisCommand}"
+                    Background="{StaticResource PrimaryBrush}" Foreground="White" BorderThickness="0"
+                    Padding="20,10" FontWeight="SemiBold" Cursor="Hand"
+                    VerticalContentAlignment="Center" />
+          </Grid>
         </StackPanel>
-        <ListBox Grid.Row="2"
-                 Margin="0,10,0,0"
-                 ItemsSource="{Binding Jobs}"
-                 SelectedItem="{Binding SelectedJob}">
+        <ListBox Grid.Row="2" ItemsSource="{Binding Jobs}" SelectedItem="{Binding SelectedJob}"
+                 BorderThickness="0" Background="Transparent" Padding="0"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+          <ListBox.ItemContainerStyle>
+            <Style TargetType="ListBoxItem">
+              <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+              <Setter Property="Padding" Value="0" />
+              <Setter Property="Margin" Value="0,0,0,8" />
+              <Setter Property="Template">
+                <Setter.Value>
+                  <ControlTemplate TargetType="ListBoxItem">
+                    <Border x:Name="Bd" Padding="12,10" CornerRadius="8" Cursor="Hand"
+                            Background="#F8F9FA" BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="1">
+                      <ContentPresenter />
+                      <Border.Style>
+                        <Style TargetType="Border">
+                          <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                              <Setter Property="Background" Value="#F0EFF5" />
+                            </Trigger>
+                          </Style.Triggers>
+                        </Style>
+                      </Border.Style>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                      <Trigger Property="IsSelected" Value="True">
+                        <Setter TargetName="Bd" Property="Background" Value="{StaticResource UserBubbleBrush}" />
+                        <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
+                      </Trigger>
+                    </ControlTemplate.Triggers>
+                  </ControlTemplate>
+                </Setter.Value>
+              </Setter>
+            </Style>
+          </ListBox.ItemContainerStyle>
           <ListBox.ItemTemplate>
             <DataTemplate>
               <StackPanel>
-                <TextBlock FontWeight="SemiBold" Text="{Binding JobId}" />
-                <TextBlock Opacity="0.7" Text="{Binding Status}" />
+                <TextBlock Text="{Binding JobId}" FontWeight="SemiBold" FontSize="12" Foreground="{StaticResource TextPrimaryBrush}"
+                           TextTrimming="CharacterEllipsis" />
+                <TextBlock Text="{Binding Status}" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,2,0,0" />
               </StackPanel>
             </DataTemplate>
           </ListBox.ItemTemplate>
@@ -54,115 +99,182 @@
       </Grid>
     </Border>
 
-    <Border Grid.Column="1" Margin="0,0,10,0" Padding="10" BorderBrush="#DDDDDD" BorderThickness="1" CornerRadius="6">
-      <Grid>
+    <!-- Separator -->
+    <Grid Grid.Column="1" Background="{StaticResource BorderLightBrush}" />
+
+    <!-- Center: Analysis + Chat -->
+    <Border Grid.Column="2" Background="{StaticResource PanelBgBrush}" CornerRadius="12" Margin="0,16,0,16"
+            BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="1">
+      <Grid Margin="24">
         <Grid.RowDefinitions>
           <RowDefinition Height="Auto" />
           <RowDefinition Height="Auto" />
           <RowDefinition Height="Auto" />
-          <RowDefinition Height="3*" />
-          <RowDefinition Height="2*" />
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="*" />
           <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-        <TextBlock FontSize="18" FontWeight="SemiBold" Text="Analysis Monitor" />
-        <ProgressBar Grid.Row="1" Height="18" Margin="0,10,0,0" Minimum="0" Maximum="100" Value="{Binding ProgressValue, Mode=OneWay}" />
-        <DockPanel Grid.Row="2" Margin="0,8,0,0">
-          <TextBlock FontWeight="SemiBold" Text="Status:" />
-          <TextBlock Margin="6,0,12,0" Text="{Binding CurrentStatus}" />
-          <TextBlock FontWeight="SemiBold" Text="Current Step:" />
-          <TextBlock Margin="6,0,0,0" Text="{Binding CurrentStep}" />
-        </DockPanel>
-        <Grid Grid.Row="3" Margin="0,10,0,10">
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="2*" />
-            <ColumnDefinition Width="3*" />
-          </Grid.ColumnDefinitions>
-          <GroupBox Grid.Column="0" Header="Step Timeline" Margin="0,0,8,0">
-            <ListBox ItemsSource="{Binding StepTimeline}">
-              <ListBox.ItemTemplate>
-                <DataTemplate>
-                  <DockPanel Margin="0,0,0,6">
-                    <TextBlock Width="90" FontWeight="SemiBold" Text="{Binding Name}" />
-                    <TextBlock Width="90" Opacity="0.7" Text="{Binding State}" />
-                    <TextBlock Opacity="0.7" Text="{Binding Progress, StringFormat={}{0:F1}%}" />
-                  </DockPanel>
-                </DataTemplate>
-              </ListBox.ItemTemplate>
-            </ListBox>
-          </GroupBox>
-          <GroupBox Grid.Column="1" Header="Live Log">
-            <ListBox ItemsSource="{Binding LiveLogs}" />
-          </GroupBox>
-        </Grid>
 
-        <GroupBox Grid.Row="4" Header="Chat" Margin="0,0,0,10">
+        <!-- Analysis header + progress -->
+        <TextBlock Grid.Row="0" Text="Analysis" FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" />
+        <ProgressBar Grid.Row="1" Height="6" Margin="0,12,0,0" Minimum="0" Maximum="100" Value="{Binding ProgressValue, Mode=OneWay}"
+                    Foreground="{StaticResource PrimaryBrush}" Background="#E8E8ED" />
+        <DockPanel Grid.Row="2" Margin="0,8,0,16">
+          <TextBlock Text="{Binding CurrentStatus}" FontSize="13" Foreground="{StaticResource TextPrimaryBrush}" />
+          <TextBlock DockPanel.Dock="Right" Text="{Binding CurrentStep}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" />
+        </DockPanel>
+
+        <!-- Step timeline: progress indicators -->
+        <Border Grid.Row="3" Margin="0,0,0,4" Padding="0,0,0,4" MaxHeight="72">
+          <Border.Child>
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+              <ItemsControl ItemsSource="{Binding StepTimeline}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <WrapPanel Orientation="Horizontal" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Border Margin="0,0,10,8" Padding="10,6" CornerRadius="20" Background="#F0EFF5">
+                      <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center">
+                          <Ellipse.Style>
+                            <Style TargetType="Ellipse">
+                              <Setter Property="Fill" Value="#B2B2B2" />
+                              <Style.Triggers>
+                                <DataTrigger Binding="{Binding State}" Value="COMPLETED">
+                                  <Setter Property="Fill" Value="#00B894" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding State}" Value="RUNNING">
+                                  <Setter Property="Fill" Value="{StaticResource PrimaryBrush}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding State}" Value="FAILED">
+                                  <Setter Property="Fill" Value="#D63031" />
+                                </DataTrigger>
+                              </Style.Triggers>
+                            </Style>
+                          </Ellipse.Style>
+                        </Ellipse>
+                        <TextBlock Text="{Binding Name}" FontSize="12" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </Border.Child>
+        </Border>
+
+        <!-- Chat messages (auto-scroll) -->
+        <ScrollViewer x:Name="ChatScrollViewer" Grid.Row="4" VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled" Padding="0,8,0,0">
+          <ItemsControl ItemsSource="{Binding ChatMessages}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <StackPanel Margin="0,0,0,16" MaxWidth="85%">
+                  <StackPanel.Style>
+                    <Style TargetType="StackPanel">
+                      <Setter Property="HorizontalAlignment" Value="Left" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding Role}" Value="{x:Static models:MessageRole.User}">
+                          <Setter Property="HorizontalAlignment" Value="Right" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </StackPanel.Style>
+                  <Border CornerRadius="16" Padding="16,12" Background="{StaticResource AssistantBubbleBrush}">
+                    <Border.Style>
+                      <Style TargetType="Border">
+                        <Setter Property="Background" Value="{StaticResource AssistantBubbleBrush}" />
+                        <Setter Property="Effect">
+                          <Setter.Value>
+                            <DropShadowEffect BlurRadius="8" ShadowDepth="0" Opacity="0.06" Color="Black" />
+                          </Setter.Value>
+                        </Setter>
+                        <Style.Triggers>
+                          <DataTrigger Binding="{Binding Role}" Value="{x:Static models:MessageRole.User}">
+                            <Setter Property="Background" Value="{StaticResource UserBubbleBrush}" />
+                          </DataTrigger>
+                        </Style.Triggers>
+                      </Style>
+                    </Border.Style>
+                    <StackPanel>
+                      <TextBlock Text="{Binding Text}" TextWrapping="Wrap" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}"
+                                 LineHeight="22" />
+                      <TextBlock Text="{Binding Timestamp, StringFormat={}{0:HH:mm}}" FontSize="11"
+                                 Foreground="{StaticResource TextSecondaryBrush}" Margin="0,6,0,0" />
+                    </StackPanel>
+                  </Border>
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+
+        <!-- Chat input: rounded field + send icon -->
+        <Border Grid.Row="5" Margin="0,16,0,0" Padding="4" Background="White"
+                BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="1" CornerRadius="24">
           <Grid>
-            <Grid.RowDefinitions>
-              <RowDefinition Height="*" />
-              <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
-            <ListBox Grid.Row="0" Margin="0,6,0,8" ItemsSource="{Binding ChatMessages}">
-              <ListBox.ItemTemplate>
-                <DataTemplate>
-                  <StackPanel Margin="0,0,0,10">
-                    <DockPanel>
-                      <TextBlock FontWeight="SemiBold" Text="{Binding Role}" />
-                      <TextBlock Margin="8,0,0,0" Opacity="0.7" Text="{Binding Timestamp, StringFormat={}{0:HH:mm:ss}}" />
-                    </DockPanel>
-                    <TextBlock Margin="0,4,0,0" TextWrapping="Wrap" Text="{Binding Text}" />
-                  </StackPanel>
-                </DataTemplate>
-              </ListBox.ItemTemplate>
-            </ListBox>
-            <DockPanel Grid.Row="1">
-              <Button Width="90"
-                      Height="32"
-                      Margin="8,0,0,0"
-                      Content="Send"
-                      Command="{Binding SendChatCommand}"
-                      DockPanel.Dock="Right" />
-              <TextBox Height="32"
-                       VerticalContentAlignment="Center"
-                       Text="{Binding ChatInput, UpdateSourceTrigger=PropertyChanged}" />
-            </DockPanel>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBox Grid.Column="0" x:Name="ChatInputBox" BorderThickness="0" Padding="16,12"
+                     VerticalContentAlignment="Center" FontSize="14"
+                     Text="{Binding ChatInput, UpdateSourceTrigger=PropertyChanged}"
+                     VerticalAlignment="Center" />
+            <Button Grid.Column="1" Command="{Binding SendChatCommand}" Width="44" Height="44"
+                    Background="{StaticResource PrimaryBrush}" Foreground="White" BorderThickness="0"
+                    Cursor="Hand" Padding="0" Margin="4,0,0,0">
+              <Button.Content>
+                <Path Data="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" Fill="White" Stretch="Uniform"
+                      Width="20" Height="20" />
+              </Button.Content>
+            </Button>
           </Grid>
-        </GroupBox>
-
-        <DockPanel Grid.Row="5">
-          <TextBlock FontStyle="Italic" Opacity="0.7" Text="State updates are streamed over SSE in real time." />
-        </DockPanel>
+        </Border>
       </Grid>
     </Border>
 
-    <Border Grid.Column="2" Padding="10" BorderBrush="#DDDDDD" BorderThickness="1" CornerRadius="6">
-      <Grid>
+    <!-- Separator -->
+    <Grid Grid.Column="3" Background="{StaticResource BorderLightBrush}" />
+
+    <!-- Right: Sources -->
+    <Border Grid.Column="4" Background="{StaticResource PanelBgBrush}" CornerRadius="12" Margin="0,16,16,16"
+            BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="1">
+      <Grid Margin="20">
         <Grid.RowDefinitions>
           <RowDefinition Height="Auto" />
           <RowDefinition Height="*" />
         </Grid.RowDefinitions>
-        <TextBlock FontSize="18" FontWeight="SemiBold" Text="Sources" />
-        <ListBox Grid.Row="1" Margin="0,10,0,0" ItemsSource="{Binding Sources}">
-          <ListBox.ItemTemplate>
-            <DataTemplate>
-              <Border Margin="0,0,0,10" Padding="8" BorderBrush="#E5E5E5" BorderThickness="1" CornerRadius="4">
-                <StackPanel>
-                  <DockPanel>
-                    <TextBlock FontWeight="SemiBold" Text="{Binding TimestampDisplay}" />
-                    <Button Width="120"
-                            Height="24"
-                            Margin="8,0,0,0"
-                            Content="Copy Timestamp"
-                            Command="{Binding DataContext.CopyTimestampCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                            CommandParameter="{Binding}"
-                            DockPanel.Dock="Right" />
-                  </DockPanel>
-                  <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Text="{Binding Snippet}" />
-                  <TextBlock Margin="0,4,0,0" Opacity="0.7" FontSize="11" Text="{Binding ChunkId}" />
-                </StackPanel>
-              </Border>
-            </DataTemplate>
-          </ListBox.ItemTemplate>
-        </ListBox>
+        <TextBlock Grid.Row="0" Text="Sources" FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" />
+        <ScrollViewer Grid.Row="1" Margin="0,16,0,0" VerticalScrollBarVisibility="Auto">
+          <ItemsControl ItemsSource="{Binding Sources}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Border Margin="0,0,0,12" Padding="14" CornerRadius="10" Background="White"
+                        BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="1">
+                  <StackPanel>
+                    <DockPanel>
+                      <TextBlock FontWeight="SemiBold" Text="{Binding TimestampDisplay}" FontSize="13"
+                                 Foreground="{StaticResource PrimaryBrush}" />
+                      <Button DockPanel.Dock="Right" Content="Copy Timestamp" Width="110" Height="28"
+                              Command="{Binding DataContext.CopyTimestampCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              CommandParameter="{Binding}"
+                              Background="{StaticResource UserBubbleBrush}" Foreground="{StaticResource PrimaryBrush}"
+                              BorderThickness="0" FontSize="12" Cursor="Hand" />
+                    </DockPanel>
+                    <TextBlock Margin="0,8,0,0" TextWrapping="Wrap" Text="{Binding Snippet}" FontSize="13"
+                               Foreground="{StaticResource TextPrimaryBrush}" LineHeight="20" />
+                    <TextBlock Margin="0,6,0,0" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                               Text="{Binding ChunkId}" />
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
       </Grid>
     </Border>
   </Grid>

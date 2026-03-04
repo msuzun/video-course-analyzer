@@ -10,5 +10,17 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         DataContext = new MainViewModel(new ApiClient());
+        Loaded += OnLoaded;
+    }
+
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainViewModel vm)
+        {
+            vm.ChatMessages.CollectionChanged += (_, _) =>
+            {
+                ChatScrollViewer.ScrollToEnd();
+            };
+        }
     }
 }
