@@ -1,0 +1,27 @@
+﻿# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.venv/
+venv/
+
+# Build/Test
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Env
+.env
+.env.local
+
+# IDE/OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Data runtime artifacts
+data/jobs/*
+!data/jobs/.gitkeep

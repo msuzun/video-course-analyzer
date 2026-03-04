@@ -1,0 +1,45 @@
+﻿services:
+  api:
+    image: python:${PYTHON_VERSION:-3.11}-slim
+    working_dir: /app
+    command: sh -c "pip install -r requirements.txt && python -m http.server ${API_PORT:-8000}"
+    volumes:
+      - ./apps/api:/app
+      - ./data/jobs:/data/jobs
+    env_file:
+      - .env.example
+    ports:
+      - "${API_PORT:-8000}:${API_PORT:-8000}"
+
+  worker-cpu:
+    image: python:${PYTHON_VERSION:-3.11}-slim
+    working_dir: /app
+    command: sh -c "pip install -r requirements.txt && python -c 'import time; print(\"worker-cpu ready\"); time.sleep(3600)'"
+    volumes:
+      - ./apps/worker-cpu:/app
+      - ./data/jobs:/data/jobs
+    env_file:
+      - .env.example
+
+  worker-gpu:
+    image: python:${PYTHON_VERSION:-3.11}-slim
+    working_dir: /app
+    command: sh -c "pip install -r requirements.txt && python -c 'import time; print(\"worker-gpu ready\"); time.sleep(3600)'"
+    volumes:
+      - ./apps/worker-gpu:/app
+      - ./data/jobs:/data/jobs
+    env_file:
+      - .env.example
+    profiles:
+      - gpu
+
+  rag:
+    image: python:${PYTHON_VERSION:-3.11}-slim
+    working_dir: /app
+    command: sh -c "pip install -r requirements.txt && python -c 'import time; print(\"rag ready\"); time.sleep(3600)'"
+    volumes:
+      - ./apps/rag:/app
+      - ./data/jobs:/data/jobs
+    env_file:
+      - .env.example
+
