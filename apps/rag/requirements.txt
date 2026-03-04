@@ -1,2 +1,5 @@
-﻿pydantic==2.10.4
+celery==5.4.0
 numpy==2.2.1
+pydantic==2.10.4
+qdrant-client==1.13.2
+sentence-transformers==3.3.1

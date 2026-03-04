@@ -46,7 +46,7 @@ services:
   rag-indexer:
     image: python:${PYTHON_VERSION:-3.11}-slim
     working_dir: /app
-    command: sh -c "pip install -r requirements.txt && python -c 'import time; print(\"rag-indexer ready\"); time.sleep(3600)'"
+    command: sh -c "pip install -r requirements.txt && celery -A indexer:celery_app worker --loglevel=info --pool=solo"
     depends_on:
       - redis
       - qdrant
@@ -54,6 +54,7 @@ services:
       DATA_ROOT: /data/jobs
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-bge-m3}
     volumes:
       - ./apps/rag:/app
       - ./data/jobs:/data/jobs

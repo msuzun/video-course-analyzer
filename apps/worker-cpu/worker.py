@@ -222,6 +222,19 @@ def pipeline_run(job_id: str) -> dict[str, Any]:
         chunking_result = run_chunking(job_id, DATA_ROOT)
         append_live_log(job_id, "chunking step completed")
 
+        append_live_log(job_id, "rag_index enqueue started")
+        celery_app.send_task("rag_index", args=[job_id])
+        append_live_log(job_id, "rag_index enqueue completed")
+
+        update_step_state(
+            job_id,
+            status="RAG_INDEX_QUEUED",
+            current_step="rag_index",
+            step_name="rag_index",
+            step_state="QUEUED",
+            progress=99.0,
+        )
+
         state = update_step_state(
             job_id,
             status="COMPLETED",
