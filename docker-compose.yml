@@ -22,9 +22,13 @@ services:
       DATA_ROOT: /data/jobs
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-bge-m3}
+      CHAT_MODEL: ${CHAT_MODEL:-Qwen/Qwen2.5-1.5B-Instruct}
+      CHAT_PROMPT_PATH: /shared/models/prompts/chat_answer.txt
     volumes:
       - ./apps/api:/app
       - ./data/jobs:/data/jobs
+      - ./shared:/shared
     ports:
       - "8000:8000"
 
