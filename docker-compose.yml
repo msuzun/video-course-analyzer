@@ -1,45 +1,59 @@
 ﻿services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+    volumes:
+      - ./data/qdrant:/qdrant/storage
+
   api:
     image: python:${PYTHON_VERSION:-3.11}-slim
     working_dir: /app
-    command: sh -c "pip install -r requirements.txt && python -m http.server ${API_PORT:-8000}"
+    command: sh -c "pip install -r requirements.txt && python -m http.server 8000"
+    depends_on:
+      - redis
+      - qdrant
+    environment:
+      DATA_ROOT: /data/jobs
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
     volumes:
       - ./apps/api:/app
       - ./data/jobs:/data/jobs
-    env_file:
-      - .env.example
     ports:
-      - "${API_PORT:-8000}:${API_PORT:-8000}"
+      - "8000:8000"
 
   worker-cpu:
     image: python:${PYTHON_VERSION:-3.11}-slim
     working_dir: /app
     command: sh -c "pip install -r requirements.txt && python -c 'import time; print(\"worker-cpu ready\"); time.sleep(3600)'"
+    depends_on:
+      - redis
+      - qdrant
+    environment:
+      DATA_ROOT: /data/jobs
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
     volumes:
       - ./apps/worker-cpu:/app
       - ./data/jobs:/data/jobs
-    env_file:
-      - .env.example
 
-  worker-gpu:
+  rag-indexer:
     image: python:${PYTHON_VERSION:-3.11}-slim
     working_dir: /app
-    command: sh -c "pip install -r requirements.txt && python -c 'import time; print(\"worker-gpu ready\"); time.sleep(3600)'"
-    volumes:
-      - ./apps/worker-gpu:/app
-      - ./data/jobs:/data/jobs
-    env_file:
-      - .env.example
-    profiles:
-      - gpu
-
-  rag:
-    image: python:${PYTHON_VERSION:-3.11}-slim
-    working_dir: /app
-    command: sh -c "pip install -r requirements.txt && python -c 'import time; print(\"rag ready\"); time.sleep(3600)'"
+    command: sh -c "pip install -r requirements.txt && python -c 'import time; print(\"rag-indexer ready\"); time.sleep(3600)'"
+    depends_on:
+      - redis
+      - qdrant
+    environment:
+      DATA_ROOT: /data/jobs
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
     volumes:
       - ./apps/rag:/app
       - ./data/jobs:/data/jobs
-    env_file:
-      - .env.example
-
