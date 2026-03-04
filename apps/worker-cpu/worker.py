@@ -7,6 +7,7 @@ from typing import Any
 from celery import Celery
 
 from steps.asr_whisper import run_asr_whisper
+from steps.chunking import run_chunking
 from steps.ingest import run_ingest
 from steps.keyframes import run_keyframes
 from steps.ocr import run_ocr
@@ -200,7 +201,36 @@ def pipeline_run(job_id: str) -> dict[str, Any]:
         ocr_result = run_ocr(job_id, DATA_ROOT)
         append_live_log(job_id, "ocr step completed")
 
+        update_step_state(
+            job_id,
+            status="RAG_PREP_RUNNING",
+            current_step="chunking",
+            step_name="ocr",
+            step_state="COMPLETED",
+            progress=97.0,
+        )
+        update_step_state(
+            job_id,
+            status="RAG_PREP_RUNNING",
+            current_step="chunking",
+            step_name="chunking",
+            step_state="RUNNING",
+            progress=98.0,
+        )
+
+        append_live_log(job_id, "chunking step started")
+        chunking_result = run_chunking(job_id, DATA_ROOT)
+        append_live_log(job_id, "chunking step completed")
+
         state = update_step_state(
+            job_id,
+            status="COMPLETED",
+            current_step=None,
+            step_name="chunking",
+            step_state="COMPLETED",
+            progress=100.0,
+        )
+        update_step_state(
             job_id,
             status="COMPLETED",
             current_step=None,
@@ -249,6 +279,7 @@ def pipeline_run(job_id: str) -> dict[str, Any]:
             "scenes": scenes_result,
             "keyframes": keyframes_result,
             "ocr": ocr_result,
+            "chunking": chunking_result,
         }
     except Exception as exc:
         append_live_log(job_id, f"pipeline step failed: {exc}")
