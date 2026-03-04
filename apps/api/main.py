@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from celery import Celery
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from redis import Redis
@@ -27,6 +28,7 @@ app = FastAPI(title="video-course-analyzer-api")
 DATA_ROOT = os.getenv("DATA_ROOT", "/data/jobs")
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 JOB_CREATED_CHANNEL = "jobs.created"
+celery_client = Celery("api_client", broker=REDIS_URL, backend=REDIS_URL)
 
 
 def _utc_now_iso() -> str:
@@ -80,6 +82,11 @@ def create_job(payload: CreateJobRequest) -> CreateJobResponse:
         redis_client.publish(JOB_CREATED_CHANNEL, json.dumps(event_payload))
     except RedisError as exc:
         raise HTTPException(status_code=503, detail=f"failed_to_publish_job_event: {exc}") from exc
+
+    try:
+        celery_client.send_task("pipeline_run", args=[job_id])
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"failed_to_enqueue_pipeline_task: {exc}") from exc
 
     return CreateJobResponse(job_id=job_id)
 
